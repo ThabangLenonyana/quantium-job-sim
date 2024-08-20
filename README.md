@@ -48,6 +48,4 @@ The Prophet model is used for time series forecasting. It is located in the mode
 - **Filtering Options**: The dashboard provides filtering options for regions and products. Users can select individual regions or products, or aggregate all regions/products.
 - **Predictions**: The time series prediction graph provides insights into future sales trends.
 
-## License
 
-This project is licensed under the MIT License.
