@@ -1,18 +1,9 @@
-import pandas as pd
 from prophet import Prophet
-import plotly.express as px
 from dash import Dash, Input, Output, dcc, html
+from dataframes import df, regions, products
+from dataframes import filter_data, filter_forecast_data
+from plotter import create_donut_chart, create_forecast_chart, create_heatmap, create_price_chart
 
-# Read CSV file data into a pandas DataFrame
-df = (pd.read_csv('data/clean_data.csv')
-      # Convert date values into Datetime Objects
-      .assign(Date=lambda data: pd.to_datetime(data['Date'], format='%Y-%m-%d'))
-      .sort_values(by='Date')
-      )
-
-# Define unique attributes for filtering
-regions = df['Region'].sort_values().unique()
-products = df['Product'].sort_values().unique()
 
 # Link CSS style sheet
 css_style_sheet = [
@@ -125,7 +116,7 @@ app.layout = html.Div(
                 ),
                 html.Div(
                     children=[
-                        html.H2('Sales Forcasting',
+                        html.H2('Sales Forecasting',
                                 className='header-title-inverse'),
                         html.P(
                             ' A time-series forecasting chart that uses historical sales data to predict future sales.',
@@ -188,125 +179,32 @@ app.layout = html.Div(
     Input('date-range', 'end_date'),
     Input('forecast-region-filter', 'value'),
     Input('forecast-product-filter', 'value')
-
-
 )
 # Function to filter and update charts
 def update_charts(region, product, start_date, end_date, forecast_region, forecast_product):
 
-    if region == 'All' and product == 'All':
-        filtered_data = df[(df['Date'] >= start_date)
-                           & (df['Date'] <= end_date)]
-    elif region == 'All':
-        filtered_data = df[(df['Product'] == product) & (
-            df['Date'] >= start_date) & (df['Date'] <= end_date)]
-    elif product == 'All':
-        filtered_data = df[(df['Region'] == region) & (
-            df['Date'] >= start_date) & (df['Date'] <= end_date)]
-    else:
-        filtered_data = df[(df['Region'] == region) & (df['Product'] == product) & (
-            df['Date'] >= start_date) & (df['Date'] <= end_date)]
-
+    filtered_data = filter_data(df, region, product, start_date, end_date)
     filtered_data = filtered_data.set_index('Date')
-
     resampled_data = filtered_data.resample('M').sum()
     resampled_data['Sales_MA'] = resampled_data['Sales'].rolling(
         window=3).mean()
 
-    # Define the sales trend chart graph using filtered data
-    price_chart_figure = {
-        'data': [
-            {'x': resampled_data.index,
-             'y': resampled_data['Sales'],
-             'name': 'Monthly Sales',
-             'type': 'line',
-             'hovertemplate': ('$%{y:.2f}<extra></extra>')
-             },
-            {'x': resampled_data.index,
-             'y': resampled_data['Sales_MA'],
-             'type': 'line',
-             'name': '3-Month Moving Average',
-             'hovertemplate': ('$%{y:.2f}<extra></extra>')
-             }
-        ],
+    price_chart_figure = create_price_chart(resampled_data)
+    donut_chart_figure = create_donut_chart(df)
+    heatmap_figure = create_heatmap(filtered_data)
 
-        'layout': {'title': {'text': 'Sales Trend Over Time (Monthly Aggregated)',
-                             'x': 0.05,
-                             'xanchor': 'left'},
-
-                   'xaxis': {'title': 'Date', 'fixedrange': True},
-                   'yaxis': {'title': 'Sales (USD)', 'tickprefix': '$', 'fixedrange': True},
-                   'colorway': ["#17b897", "#f76c6c"]
-                   }
-
-    }
-
-    # filter Dataframe by grouping the data according to product
-    product_sales = df.groupby(
-        'Product', as_index=False).agg({'Sales': 'sum'})
-
-    # Define a pie chart according to the filtered data
-    donut_chart_figure = px.pie(
-        product_sales,
-        values='Sales',
-        names='Product',
-        hole=0.5,
-        title='Sales Contribution by Product'
-    )
-
-    # Filter dataframe by grouging data acording to date and region
-    heatmap_data = filtered_data.groupby(
-        ['Date', 'Region']).sum().reset_index()
-
-    # Define a heatmap graph
-    heatmap_figure = px.density_heatmap(
-        heatmap_data,
-        x='Date',
-        y='Region',
-        z='Sales',
-        color_continuous_scale='viridis',
-        title='Sales Heatmap by Date and Region'
-    )
-
-    if forecast_region == 'All' and forecast_product == 'All':
-        forecast_data = df.copy()
-    elif forecast_region == 'All':
-        forecast_data = df[(df['Product'] == forecast_product)]
-    elif forecast_product == 'All':
-        forecast_data = df[df['Region'] == forecast_region]
-    else:
-        forecast_data = df[(df['Region'] == forecast_region) &
-                           (df['Product'] == forecast_product)]
-
-    # Aggregate data by month
+    forecast_data = filter_forecast_data(df, forecast_region, forecast_product)
     monthly_data = forecast_data.resample('M', on='Date').sum().reset_index()
     monthly_data = monthly_data[['Date', 'Sales']]
     monthly_data.columns = ['ds', 'y']
 
+    # define an instance of the Prophet class
     model = Prophet()
     model.fit(monthly_data)
-
     future = model.make_future_dataframe(periods=12, freq='M')
     forecast = model.predict(future)
 
-    forecast_chart_figure = px.line(forecast, x='ds', y='yhat', labels={
-                                    'ds': 'Date', 'yhat': 'Forecasted Sales (USD)'})
-    actual_sales_line = px.line(monthly_data, x='ds', y='y')
-
-    for trace in actual_sales_line.data:
-        trace['line']['color'] = '#f76c6c'  # Set color for actual sales line
-        forecast_chart_figure.add_trace(trace)
-
-    '''forecast_chart_figure.add_traces(px.line(
-        monthly_data, x='ds', y='y').data)  # Overlay actual sales data'''
-
-    # Update layout for consistent style
-    forecast_chart_figure.update_layout(
-        title='Sales Forecasting',
-        xaxis_title='Date',
-        yaxis_title='Sales (USD)',
-        colorway=["#17b897", "#f76c6c"],
-        template='plotly_white')
+    forecast_chart_figure = create_forecast_chart(forecast, monthly_data)
 
     return price_chart_figure, donut_chart_figure, heatmap_figure, forecast_chart_figure
 

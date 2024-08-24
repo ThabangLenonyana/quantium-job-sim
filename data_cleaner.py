@@ -1,8 +1,12 @@
+from data_processing import prepare_data, load_data
 import csv
 from glob import glob
+import pandas as pd
+
+file_paths = glob('data/daily_sales_data_*.csv')
 
 # Combine all the CSV files so they can be read all at once
-file_paths = glob('data/daily_sales_data_*.csv')
+
 
 # Create a writing stream for the CSV file
 with open('data/clean_data.csv', mode='w', newline='') as clean_data:
