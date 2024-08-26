@@ -4,6 +4,9 @@ This project is a data analytics dashboard for visualizing and analyzing sales d
 
 ## Project Structure
  - **app.py**: The main application file containing the Dash app layout, callbacks, and data processing logic.
+ - **data_cleaner.py**: Contains a script that cleans and prepares the data
+ - **dataframes.py**: Module that creates pandas dataframes and filters data 
+ - **plotter.py**: Module to plot different types of visualizations
  - **data/clean_data.csv**: The dataset used in the project.
  - **assets/**: Contains custom CSS for styling the dashboard.
  - **requirements.txt/**: Contains all the necessary dependancies to run the application 
